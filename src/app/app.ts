@@ -1,5 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { fetchAuthSession, signInWithRedirect } from 'aws-amplify/auth';
+import { Hub } from 'aws-amplify/utils';
 
 /**
  * El cascarón: la barra de navegación y el hueco donde el router pone la
@@ -28,4 +30,28 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
   styleUrl: './app.css',
   templateUrl: './app.html',
 })
-export class App {}
+export class App {
+  // La caja que mira la plantilla. Empieza en false: sin sesión, no eres nadie.
+  protected readonly esBibliotecario = signal(false);
+
+  constructor() {
+    this.revisarGrupos();
+
+    Hub.listen('auth', ({ payload }) => {
+      if (payload.event === 'signInWithRedirect' || payload.event === 'signedOut') {
+        this.revisarGrupos();
+      }
+    });
+  }
+
+  private async revisarGrupos() {
+    const { tokens } = await fetchAuthSession();
+    const grupos = (tokens?.accessToken?.payload['cognito:groups'] ?? []) as string[];
+    this.esBibliotecario.set(grupos.includes('bibliotecarios'));
+    console.log('grupos: ', grupos);
+  }
+
+  protected async entrar() {
+    await signInWithRedirect();
+  }
+}
